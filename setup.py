@@ -7,7 +7,7 @@ setup(
     name="lxh",
     version="0.1.0",
     author="LXH Team",
-    author_email="team@lxh.dev",
+    author_email="3110433389@qq.com",
     description="LXH - Lucid eXtended Harness, 一个清晰、智能、高度可扩展的自动化测试框架",
     long_description=long_description,
     long_description_content_type="text/markdown",
