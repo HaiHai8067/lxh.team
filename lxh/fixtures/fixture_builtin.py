@@ -26,7 +26,13 @@ def lxh_config(request):
     Returns:
         EnvConfig: 环境配置对象
     """
-    pass
+    from lxh.core.config import EnvConfig
+
+    env = request.config.getoption("--env")
+    config_path = request.config.getoption("--env-config")
+    rootdir = str(request.config.rootdir)
+
+    return EnvConfig(env=env, config_path=config_path, root_dir=rootdir)
 
 
 @pytest.fixture(scope="session")

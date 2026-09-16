@@ -7,7 +7,9 @@ import sys
 import pytest
 from pathlib import Path
 
+from lxh.core.config import EnvConfig
 from lxh import __version__, __slogan__, __author__
+
 # 导入内置 fixtures 到当前命名空间，pytest 会自动发现
 from lxh.fixtures.fixture_builtin import (
     lxh_env,
