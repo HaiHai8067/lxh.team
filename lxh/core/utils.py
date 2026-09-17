@@ -19,5 +19,17 @@ class VarEngine:
     def __init__(self):
         self._context: Dict[str, Any] = {}
         self._functions: Dict[str, callable] = {
-
+            "random_str": self._func_random_str,
         }
+
+    # 如下部分是内置函数
+    @staticmethod
+    def _func_random_str(length: str = "8") -> str:
+        """生成随机字符串"""
+        n = int(length)
+        return "".join(random.choices(string.ascii_letters + string.digits, k=n))
+
+
+if __name__ == "__main__":
+    v_e = VarEngine()
+    print(v_e._func_random_str())
