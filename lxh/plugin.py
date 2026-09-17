@@ -47,9 +47,9 @@ def pytest_configure(config):
         config.addinivalue_line("markers", f"{name}: {desc}")
 
     # 初始化日志
-    # from lxh.core.logger import setup_logger - 待实现
+    from lxh.core.logger import setup_logger
     rootdir = str(config.rootdir)
-    # setup_logger(log_dir=str(Path(rootdir) / "reports" / "logs")) - 待实现
+    setup_logger(log_dir=str(Path(rootdir) / "reports" / "logs"))
 
 
 def pytest_sessionstart(session):
