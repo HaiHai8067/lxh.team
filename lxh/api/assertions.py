@@ -103,7 +103,43 @@ class ApiAssert:
 
     # ---- 响应时间断言 ----
 
+    def time_less_than(self, seconds: float) -> "ApiAssert":
+        """断言响应时间小于指定值（秒）"""
+        self._response.assert_time_less_than(seconds)
+        return self
 
+    def time_greater_than(self, seconds: float) -> "ApiAssert":
+        """断言响应时间大于指定值（秒）"""
+        assert self._response.elapsed > seconds, (
+            f"响应时间断言失败: 期望 > {seconds}s, 实际 {self._response.elapsed:.3f}s"
+        )
+        return self
+
+    # ---- Header断言 ----
+
+    def header_has(self, header: str) -> "ApiAssert":
+        """断言响应头包含指定字段"""
+        self._response.assert_header_contains(header)
+        return self
+
+    def header_equal(self, header: str, value: str) -> "ApiAssert":
+        """断言响应头字段等于指定值"""
+        headers_lower = {k.lower(): v for k, v in self._response.headers.items()}
+        header_lower = header.lower()
+        assert header_lower in headers_lower, f"响应头中找不到: {header}"
+        assert headers_lower[header_lower] == value, (
+            f"响应头断言失败: {header} 期望 {value}, 实际 {headers_lower[header_lower]}"
+        )
+        return self
+
+    # ---- 内容断言 ----
+
+    def body_contains(self, text: str) -> "ApiAssert":
+        """断言响应体包含指定文本"""
+        assert text in self._response.text, (
+            f"响应体断言失败: 不包含 '{text}'"
+        )
+        return self
 
     # ---- 辅助方法 ----
 
@@ -131,3 +167,8 @@ class ApiAssert:
             else:
                 return None
         return current
+
+    @property
+    def response(self) -> HttpResponse:
+        """获取原始响应对象"""
+        return self._response
