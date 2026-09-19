@@ -125,6 +125,9 @@ def lxh_logger(request):
     Returns:
         logger: loguru logger 实例
     """
-    pass
+    from lxh.core.logger import get_logger
+
+    test_name = request.node.name
+    return get_logger(f"test:{test_name}")
 
 
