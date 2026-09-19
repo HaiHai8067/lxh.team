@@ -233,3 +233,197 @@ class HttpClient:
         >>> resp.assert_status_ok()
         >>> resp.assert_json_contains("id", 1)
     """
+
+    def __init__(
+        self,
+        base_url: str = "",
+        headers: Optional[Dict[str, str]] = None,
+        timeout: int = 30,
+        verify: bool = True,
+        session: Optional[Session] = None,
+    ):
+        """
+        初始化 HTTP 客户端
+
+        Args:
+            base_url: 基础 URL，所有请求会拼接此地址
+            headers: 默认请求头
+            timeout: 默认超时时间（秒）
+            verify: 是否验证 SSL 证书
+            session: 自定义 requests Session
+        """
+        self.base_url = base_url.rstrip("/") if base_url else ""
+        self.timeout = timeout
+        self.verify = verify
+        self.session = session or Session()
+        self._var_engine = VarEngine()
+
+        if headers:
+            self.session.headers.update(headers)
+
+        # 钩子函数列表
+        self._request_hooks = []
+        self._response_hooks = []
+
+    # ---- 公共方法 ----
+
+    def set_base_url(self, base_url: str):
+        """设置基础 URL"""
+        self.base_url = base_url.rstrip("/") if base_url else ""
+
+    def set_header(self, key: str, value: str):
+        """设置请求头"""
+        self.session.headers[key] = value
+
+    def set_headers(self, headers: Dict[str, str]):
+        """批量设置请求头"""
+        self.session.headers.update(headers)
+
+    def set_var(self, key: str, value: Any):
+        """设置变量"""
+        self._var_engine.set(key, value)
+
+    def get_var(self, key: str, default: Any = None) -> Any:
+        """获取变量"""
+        return self._var_engine.get(key, default)
+
+    def add_request_hook(self, hook_func):
+        """
+        添加请求前钩子
+
+        Hook 函数签名: hook_func(method, url, kwargs) -> (url, kwargs)
+        """
+        self._request_hooks.append(hook_func)
+
+    def add_response_hook(self, hook_func):
+        """
+        添加响应后钩子
+
+        Hook 函数签名: hook_func(response) -> response
+        """
+        self._response_hooks.append(hook_func)
+
+    # ---- HTTP 方法 ----
+
+    def get(self, url: str, **kwargs) -> HttpResponse:
+        """发送 GET 请求"""
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs) -> HttpResponse:
+        """发送 POST 请求"""
+        return self.request("POST", url, **kwargs)
+
+    def put(self, url: str, **kwargs) -> HttpResponse:
+        """发送 PUT 请求"""
+        return self.request("PUT", url, **kwargs)
+
+    def delete(self, url: str, **kwargs) -> HttpResponse:
+        """发送 DELETE 请求"""
+        return self.request("DELETE", url, **kwargs)
+
+    def patch(self, url: str, **kwargs) -> HttpResponse:
+        """发送 PATCH 请求"""
+        return self.request("PATCH", url, **kwargs)
+
+    def head(self, url: str, **kwargs) -> HttpResponse:
+        """发送 HEAD 请求"""
+        return self.request("HEAD", url, **kwargs)
+
+    def options(self, url: str, **kwargs) -> HttpResponse:
+        """发送 OPTIONS 请求"""
+        return self.request("OPTIONS", url, **kwargs)
+
+    def request(self, method: str, url: str, **kwargs) -> HttpResponse:
+        """
+        发送 HTTP 请求
+
+        Args:
+            method: HTTP 方法
+            url: 请求 URL（相对路径会自动拼接 base_url）
+            **kwargs: 传递给 requests 的参数
+
+        Returns:
+            HttpResponse 对象
+        """
+        # 构造完整 URL
+        full_url = self._build_url(url)
+
+        # 变量替换
+        full_url = self._var_engine.render(full_url)
+        if "params" in kwargs:
+            kwargs["params"] = self._var_engine.render(kwargs["params"])
+        if "json" in kwargs:
+            kwargs["json"] = self._var_engine.render(kwargs["json"])
+        if "data" in kwargs:
+            kwargs["data"] = self._var_engine.render(kwargs["data"])
+        if "headers" in kwargs:
+            kwargs["headers"] = self._var_engine.render(kwargs["headers"])
+
+        # 设置默认超时和 verify
+        kwargs.setdefault("timeout", self.timeout)
+        kwargs.setdefault("verify", self.verify)
+
+        # 记录请求信息
+        request_info = {
+            "method": method,
+            "url": full_url,
+            "start_time": time.time(),
+        }
+
+        # 执行请求前钩子
+        for hook in self._request_hooks:
+            try:
+                result = hook(method, full_url, kwargs)
+                if result and isinstance(result, tuple) and len(result) == 2:
+                    full_url, kwargs = result
+            except Exception as e:
+                logger.warning(f"请求钩子执行失败: {e}")
+
+        # 发送请求
+        logger.info(f"📤 {method} {full_url}")
+
+        try:
+            response = self.session.request(method, full_url, **kwargs)
+        except requests.RequestException as e:
+            logger.error(f"❌ 请求失败: {e}")
+            raise
+
+        # 记录响应信息
+        elapsed = time.time() - request_info["start_time"]
+        request_info["elapsed"] = elapsed
+
+        # 封装响应
+        http_response = HttpResponse(response, request_info)
+
+        logger.info(
+            f"📥 {response.status_code} {method} {full_url} "
+            f"({elapsed:.3f}s)"
+        )
+
+        # 执行响应后钩子
+        for hook in self._response_hooks:
+            try:
+                http_response = hook(http_response) or http_response
+            except Exception as e:
+                logger.warning(f"响应钩子执行失败: {e}")
+
+        return http_response
+
+    # ---- 内部方法 ----
+
+    def _build_url(self, url: str) -> str:
+        """构造完整 URL"""
+        if url.startswith(("http://", "https://")):
+            return url
+        if self.base_url:
+            return f"{self.base_url}/{url.lstrip('/')}"
+        return url
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.session.close()
+
+    def __repr__(self) -> str:
+        return f"HttpClient(base_url='{self.base_url}')"
