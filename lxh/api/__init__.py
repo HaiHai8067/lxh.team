@@ -4,12 +4,12 @@ API 测试模块
 """
 
 from lxh.api.assertions import ApiAssert
-# from lxh.api.extractor import Extractor
+from lxh.api.extractor import Extractor
 from lxh.api.http import HttpClient, HttpResponse
 
 __all__ = [
     "HttpClient",
     "HttpResponse",
     "ApiAssert",
-    # "Extractor",
+    "Extractor",
 ]
