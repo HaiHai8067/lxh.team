@@ -4,8 +4,8 @@ LXH 核心模块
 """
 
 from lxh.core.config import EnvConfig, get_env_config
-# from lxh.core.utils import v, VarEngine
-# from lxh.core.logger import get_logger
+from lxh.core.utils import v, VarEngine
+from lxh.core.logger import get_logger
 
 __all__ = [
     "EnvConfig",

@@ -17,6 +17,20 @@ def lxh_api_client(lxh_config):
     Returns:
         HttpClient: API 客户端实例
     """
+    from lxh.api import HttpClient
+
+    base_url = lxh_config.get("base_url", "")
+    headers = lxh_config.get("headers", {}) or {}
+
+    client = HttpClient(
+        base_url=base_url,
+        headers=headers,
+    )
+
+    yield client
+
+    client.session.close()
+
 
 @pytest.fixture(scope="function")
 def lxh_api(lxh_config):
@@ -28,3 +42,17 @@ def lxh_api(lxh_config):
     Returns:
         HttpClient: API 客户端实例
     """
+    from lxh.api import HttpClient
+
+    base_url = lxh_config.get("base_url", "")
+    headers = lxh_config.get("headers", {}) or {}
+
+    client = HttpClient(
+        base_url=base_url,
+        headers=headers,
+    )
+
+    yield client
+
+    client.session.close()
+
