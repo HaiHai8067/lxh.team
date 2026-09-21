@@ -62,3 +62,47 @@ def make_mock_response(
         mock_resp.json.side_effect = ValueError("No JSON")
 
     return mock_resp
+
+
+# ============================================================
+# HttpResponse 测试
+# ============================================================
+
+
+class TestHttpResponse:
+    """HttpResponse 响应封装测试类"""
+
+    def test_status_code(self):
+        """测试 status_code 属性"""
+        mock_resp = make_mock_response(status_code=200)
+        resp = HttpResponse(mock_resp)
+        assert resp.status_code == 200
+
+    def test_status_code_404(self):
+        """测试 404 状态码"""
+        mock_resp = make_mock_response(
+            status_code=404, json_data={"error": "not found"}
+        )
+        resp = HttpResponse(mock_resp)
+        assert resp.status_code == 404
+        assert resp.ok is False
+
+    def test_url_property(self):
+        """测试 url 属性"""
+        mock_resp = make_mock_response()
+        resp = HttpResponse(mock_resp)
+        assert resp.url == "https://api.example.com/test"
+
+    def test_headers_property(self):
+        """测试 headers 属性"""
+        mock_resp = make_mock_response()
+        resp = HttpResponse(mock_resp)
+        assert resp.headers["Content-Type"] == "application/json"
+        assert resp.headers["X-Request-Id"] == "req-12345"
+
+    def test_text_property(self):
+        """测试 text 属性"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        assert "test_user" in resp.text
+
