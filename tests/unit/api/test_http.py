@@ -106,3 +106,85 @@ class TestHttpResponse:
         resp = HttpResponse(mock_resp)
         assert "test_user" in resp.text
 
+    def test_elapsed_property(self):
+        """测试 elapsed 属性"""
+        mock_resp = make_mock_response(elapsed=0.5)
+        resp = HttpResponse(mock_resp)
+        assert resp.elapsed == 0.5
+
+    def test_ok_property_200(self):
+        """测试 ok 属性（200 状态码）"""
+        mock_resp = make_mock_response(status_code=200)
+        resp = HttpResponse(mock_resp)
+        assert resp.ok is True
+
+    def test_ok_property_500(self):
+        """测试 ok 属性（500 状态码）"""
+        mock_resp = make_mock_response(status_code=500, json_data={})
+        resp = HttpResponse(mock_resp)
+        assert resp.ok is False
+
+    def test_json_method(self):
+        """测试 json() 方法"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        data = resp.json()
+        assert data["code"] == 0
+        assert data["data"]["name"] == "test_user"
+
+    def test_json_cache(self):
+        """测试 JSON 缓存"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        # 调用两次
+        resp.json()
+        resp.json()
+        # json() 方法应该被调用了一次（被缓存了）
+        # 注意：这里 mock_resp.json 还是被调用了一次，
+        # 但 HttpResponse 内部应该缓存了结果
+        assert mock_resp.json.call_count == 1
+
+    def test_json_invalid(self):
+        """测试无效 JSON 响应"""
+        mock_resp = make_mock_response(text="not json")
+        mock_resp.json.side_effect = ValueError("Invalid JSON")
+        resp = HttpResponse(mock_resp)
+        assert resp.json() is None
+
+    def test_extract_simple_path(self):
+        """测试简单路径提取"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        result = resp.extract("$.data.id")
+        assert result == 1001
+
+    def test_extract_nested_path(self):
+        """测试嵌套路径提取"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        result = resp.extract("$.data.profile.city")
+        assert result == "Beijing"
+
+    def test_extract_list_item(self):
+        """测试列表元素提取"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        result = resp.extract("$.data.roles[0]")
+        assert result == "admin"
+
+    def test_extract_nonexistent(self):
+        """测试不存在的路径"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        result = resp.extract("$.data.nonexistent")
+        assert result is None
+
+    def test_extract_invalid_json(self):
+        """测试无效 JSON 时提取返回 None"""
+        mock_resp = make_mock_response(text="not json")
+        mock_resp.json.side_effect = ValueError("Invalid JSON")
+        resp = HttpResponse(mock_resp)
+        assert resp.extract("$.data.id") is None
+
+    # ---- 断言方法测试 ----
+
