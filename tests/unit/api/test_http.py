@@ -307,3 +307,261 @@ class TestHttpResponse:
         assert "0.123" in repr_str
 
 
+# ============================================================
+# HttpClient 测试
+# ============================================================
+
+
+class TestHttpClient:
+    """HttpClient 测试类"""
+
+    def test_init_with_base_url(self):
+        """测试带 base_url 初始化"""
+        client = HttpClient(base_url="https://api.example.com")
+        assert client.base_url == "https://api.example.com"
+
+    def test_init_strips_trailing_slash(self):
+        """测试 base_url 去掉末尾斜杠"""
+        client = HttpClient(base_url="https://api.example.com/")
+        assert client.base_url == "https://api.example.com"
+
+    def test_init_with_headers(self):
+        """测试带默认 headers 初始化"""
+        client = HttpClient(headers={"Authorization": "Bearer token"})
+        assert "Authorization" in client.session.headers
+        assert client.session.headers["Authorization"] == "Bearer token"
+
+    def test_set_base_url(self):
+        """测试设置 base_url"""
+        client = HttpClient()
+        client.set_base_url("https://api.new.com")
+        assert client.base_url == "https://api.new.com"
+
+    def test_set_header(self):
+        """测试设置单个 header"""
+        client = HttpClient()
+        client.set_header("X-Custom", "value")
+        assert client.session.headers["X-Custom"] == "value"
+
+    def test_set_headers(self):
+        """测试批量设置 headers"""
+        client = HttpClient()
+        client.set_headers({"X-1": "a", "X-2": "b"})
+        assert client.session.headers["X-1"] == "a"
+        assert client.session.headers["X-2"] == "b"
+
+    def test_set_and_get_var(self):
+        """测试设置和获取变量"""
+        client = HttpClient()
+        client.set_var("token", "abc123")
+        assert client.get_var("token") == "abc123"
+        assert client.get_var("nonexistent", "default") == "default"
+
+    @patch.object(requests.Session, "request")
+    def test_get_request(self, mock_request):
+        """测试 GET 请求"""
+        mock_request.return_value = make_mock_response(
+            status_code=200, json_data={"result": "ok"}
+        )
+
+        client = HttpClient(base_url="https://api.example.com")
+        resp = client.get("/users")
+
+        assert resp.status_code == 200
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "GET"
+        assert "users" in call_args[0][1]
+
+    @patch.object(requests.Session, "request")
+    def test_post_request_with_json(self, mock_request):
+        """测试带 JSON body 的 POST 请求"""
+        mock_request.return_value = make_mock_response(
+            status_code=201, json_data={"id": 1}
+        )
+
+        client = HttpClient(base_url="https://api.example.com")
+        resp = client.post("/users", json={"name": "test"})
+
+        assert resp.status_code == 201
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "POST"
+        assert call_args[1]["json"] == {"name": "test"}
+
+    @patch.object(requests.Session, "request")
+    def test_put_request(self, mock_request):
+        """测试 PUT 请求"""
+        mock_request.return_value = make_mock_response(
+            status_code=200, json_data={"updated": True}
+        )
+
+        client = HttpClient(base_url="https://api.example.com")
+        resp = client.put("/users/1", json={"name": "updated"})
+
+        assert resp.status_code == 200
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "PUT"
+
+    @patch.object(requests.Session, "request")
+    def test_delete_request(self, mock_request):
+        """测试 DELETE 请求"""
+        mock_request.return_value = make_mock_response(status_code=204, json_data=None)
+        mock_request.return_value.json.side_effect = ValueError("No JSON")
+
+        client = HttpClient(base_url="https://api.example.com")
+        resp = client.delete("/users/1")
+
+        assert resp.status_code == 204
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "DELETE"
+
+    @patch.object(requests.Session, "request")
+    def test_patch_request(self, mock_request):
+        """测试 PATCH 请求"""
+        mock_request.return_value = make_mock_response(
+            status_code=200, json_data={"patched": True}
+        )
+
+        client = HttpClient(base_url="https://api.example.com")
+        resp = client.patch("/users/1", json={"name": "patched"})
+
+        assert resp.status_code == 200
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "PATCH"
+
+    def test_full_url_construction(self):
+        """测试完整 URL 构造"""
+        client = HttpClient(base_url="https://api.example.com/api/v1")
+
+        # 相对路径
+        assert client._build_url("users") == "https://api.example.com/api/v1/users"
+        assert client._build_url("/users") == "https://api.example.com/api/v1/users"
+
+        # 绝对路径
+        assert client._build_url("https://other.com/api") == "https://other.com/api"
+
+    @patch.object(requests.Session, "request")
+    def test_variable_replacement_in_url(self, mock_request):
+        """测试 URL 中的变量替换"""
+        mock_request.return_value = make_mock_response(status_code=200, json_data={})
+
+        client = HttpClient(base_url="https://api.example.com")
+        client.set_var("user_id", 1001)
+        client.get("/users/${user_id}")
+
+        call_args = mock_request.call_args
+        assert "users/1001" in call_args[0][1]
+
+    @patch.object(requests.Session, "request")
+    def test_variable_replacement_in_params(self, mock_request):
+        """测试 params 中的变量替换（完整匹配保留原始类型）"""
+        mock_request.return_value = make_mock_response(status_code=200, json_data={})
+
+        client = HttpClient(base_url="https://api.example.com")
+        client.set_var("page", 2)
+        client.get("/users", params={"page": "${page}", "size": 10})
+
+        call_args = mock_request.call_args
+        # 完整匹配变量时保留原始类型（int）
+        assert call_args[1]["params"]["page"] == 2
+        assert call_args[1]["params"]["size"] == 10
+
+    @patch.object(requests.Session, "request")
+    def test_variable_replacement_in_json(self, mock_request):
+        """测试 JSON body 中的变量替换"""
+        mock_request.return_value = make_mock_response(status_code=200, json_data={})
+
+        client = HttpClient(base_url="https://api.example.com")
+        client.set_var("username", "test_user")
+        client.post("/users", json={"name": "${username}", "age": 18})
+
+        call_args = mock_request.call_args
+        assert call_args[1]["json"]["name"] == "test_user"
+        assert call_args[1]["json"]["age"] == 18
+
+    @patch.object(requests.Session, "request")
+    def test_request_hook(self, mock_request):
+        """测试请求钩子"""
+        mock_request.return_value = make_mock_response(status_code=200, json_data={})
+
+        client = HttpClient(base_url="https://api.example.com")
+        hook_called = []
+
+        def my_hook(method, url, kwargs):
+            hook_called.append((method, url))
+            kwargs["headers"] = {"X-Hook": "true"}
+            return url, kwargs
+
+        client.add_request_hook(my_hook)
+        client.get("/test")
+
+        assert len(hook_called) == 1
+        assert hook_called[0][0] == "GET"
+        call_args = mock_request.call_args
+        assert call_args[1]["headers"]["X-Hook"] == "true"
+
+    @patch.object(requests.Session, "request")
+    def test_response_hook(self, mock_request):
+        """测试响应钩子"""
+        mock_request.return_value = make_mock_response(
+            status_code=200, json_data={"code": 0}
+        )
+
+        client = HttpClient(base_url="https://api.example.com")
+        hook_called = []
+
+        def my_hook(response):
+            hook_called.append(response.status_code)
+            return response
+
+        client.add_response_hook(my_hook)
+        resp = client.get("/test")
+
+        assert len(hook_called) == 1
+        assert hook_called[0] == 200
+        assert resp.status_code == 200
+
+    @patch.object(requests.Session, "request")
+    def test_request_failure_raises(self, mock_request):
+        """测试请求失败时抛出异常"""
+        mock_request.side_effect = requests.ConnectionError("Connection failed")
+
+        client = HttpClient(base_url="https://api.example.com")
+        with pytest.raises(requests.ConnectionError):
+            client.get("/test")
+
+    def test_context_manager(self):
+        """测试上下文管理器"""
+        with HttpClient(base_url="https://api.example.com") as client:
+            assert client.base_url == "https://api.example.com"
+        # 退出后 session 应该被关闭
+        # （Session 没有 close 状态，这里只验证不抛异常）
+
+    def test_repr(self):
+        """测试 __repr__ 方法"""
+        client = HttpClient(base_url="https://api.example.com")
+        repr_str = repr(client)
+        assert "HttpClient" in repr_str
+        assert "api.example.com" in repr_str
+
+    @patch.object(requests.Session, "request")
+    def test_default_timeout(self, mock_request):
+        """测试默认超时设置"""
+        mock_request.return_value = make_mock_response(status_code=200, json_data={})
+
+        client = HttpClient(base_url="https://api.example.com", timeout=10)
+        client.get("/test")
+
+        call_args = mock_request.call_args
+        assert call_args[1]["timeout"] == 10
+
+    @patch.object(requests.Session, "request")
+    def test_verify_ssl(self, mock_request):
+        """测试 SSL 验证设置"""
+        mock_request.return_value = make_mock_response(status_code=200, json_data={})
+
+        client = HttpClient(base_url="https://api.example.com", verify=False)
+        client.get("/test")
+
+        call_args = mock_request.call_args
+        assert call_args[1]["verify"] is False
