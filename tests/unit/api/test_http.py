@@ -188,3 +188,122 @@ class TestHttpResponse:
 
     # ---- 断言方法测试 ----
 
+    def test_assert_status_pass(self):
+        """测试状态码断言通过"""
+        mock_resp = make_mock_response(status_code=200)
+        resp = HttpResponse(mock_resp)
+        result = resp.assert_status(200)
+        assert result is resp  # 链式调用
+
+    def test_assert_status_fail(self):
+        """测试状态码断言失败"""
+        mock_resp = make_mock_response(status_code=404, json_data={})
+        resp = HttpResponse(mock_resp)
+        with pytest.raises(AssertionError, match="状态码断言失败"):
+            resp.assert_status(200)
+
+    def test_assert_status_ok_pass(self):
+        """测试 status_ok 断言通过"""
+        mock_resp = make_mock_response(status_code=201)
+        resp = HttpResponse(mock_resp)
+        result = resp.assert_status_ok()
+        assert result is resp
+
+    def test_assert_status_ok_fail(self):
+        """测试 status_ok 断言失败"""
+        mock_resp = make_mock_response(status_code=400, json_data={})
+        resp = HttpResponse(mock_resp)
+        with pytest.raises(AssertionError):
+            resp.assert_status_ok()
+
+    def test_assert_json_contains_key(self):
+        """测试 JSON 包含字段断言"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        result = resp.assert_json_contains("code")
+        assert result is resp
+
+    def test_assert_json_contains_nested_key(self):
+        """测试 JSON 包含嵌套字段"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        resp.assert_json_contains("data.name")
+
+    def test_assert_json_contains_with_value(self):
+        """测试 JSON 字段值断言"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        resp.assert_json_contains("code", 0)
+        resp.assert_json_contains("data.name", "test_user")
+
+    def test_assert_json_contains_key_missing(self):
+        """测试 JSON 字段不存在时断言失败"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        with pytest.raises(AssertionError):
+            resp.assert_json_contains("nonexistent")
+
+    def test_assert_json_contains_value_mismatch(self):
+        """测试 JSON 字段值不匹配时断言失败"""
+        mock_resp = make_mock_response(json_data=SAMPLE_JSON)
+        resp = HttpResponse(mock_resp)
+        with pytest.raises(AssertionError):
+            resp.assert_json_contains("code", 1)
+
+    def test_assert_json_contains_invalid_json(self):
+        """测试无效 JSON 时断言失败"""
+        mock_resp = make_mock_response(text="not json")
+        mock_resp.json.side_effect = ValueError("Invalid JSON")
+        resp = HttpResponse(mock_resp)
+        with pytest.raises(AssertionError, match="不是有效的 JSON"):
+            resp.assert_json_contains("code")
+
+    def test_assert_time_less_than_pass(self):
+        """测试响应时间断言通过"""
+        mock_resp = make_mock_response(elapsed=0.1)
+        resp = HttpResponse(mock_resp)
+        result = resp.assert_time_less_than(1.0)
+        assert result is resp
+
+    def test_assert_time_less_than_fail(self):
+        """测试响应时间断言失败"""
+        mock_resp = make_mock_response(elapsed=2.0)
+        resp = HttpResponse(mock_resp)
+        with pytest.raises(AssertionError, match="响应时间断言失败"):
+            resp.assert_time_less_than(1.0)
+
+    def test_assert_header_contains_pass(self):
+        """测试响应头断言通过"""
+        mock_resp = make_mock_response()
+        resp = HttpResponse(mock_resp)
+        result = resp.assert_header_contains("Content-Type")
+        assert result is resp
+
+    def test_assert_header_contains_with_value(self):
+        """测试响应头值断言"""
+        mock_resp = make_mock_response()
+        resp = HttpResponse(mock_resp)
+        resp.assert_header_contains("Content-Type", "application/json")
+
+    def test_assert_header_contains_missing(self):
+        """测试响应头不存在时断言失败"""
+        mock_resp = make_mock_response()
+        resp = HttpResponse(mock_resp)
+        with pytest.raises(AssertionError):
+            resp.assert_header_contains("X-Nonexistent")
+
+    def test_raw_property(self):
+        """测试 raw 属性返回原始 Response"""
+        mock_resp = make_mock_response()
+        resp = HttpResponse(mock_resp)
+        assert resp.raw is mock_resp
+
+    def test_repr(self):
+        """测试 __repr__ 方法"""
+        mock_resp = make_mock_response(status_code=200, elapsed=0.123)
+        resp = HttpResponse(mock_resp)
+        repr_str = repr(resp)
+        assert "200" in repr_str
+        assert "0.123" in repr_str
+
+
